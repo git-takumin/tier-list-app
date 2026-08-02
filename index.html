@@ -756,14 +756,16 @@
     const res = await fetch("https://www.googleapis.com/books/v1/volumes?maxResults=30&q=" + encodeURIComponent(queryStr) + "&key=" + encodeURIComponent(key));
     const json = await res.json();
     if (!res.ok || json.error) throw new Error((json.error && json.error.message) || "book search failed");
-    return (json.items || []).map(it => {
-      const vi = it.volumeInfo || {};
-      return {
-        title: vi.title || q,
-        date: normalizeDate(vi.publishedDate),
-        image: vi.imageLinks ? (vi.imageLinks.thumbnail || vi.imageLinks.smallThumbnail || "").replace("http://", "https://") : ""
-      };
-    });
+    return (json.items || [])
+      .filter(it => (it.volumeInfo || {}).printType !== "MAGAZINE")
+      .map(it => {
+        const vi = it.volumeInfo || {};
+        return {
+          title: vi.title || q,
+          date: normalizeDate(vi.publishedDate),
+          image: vi.imageLinks ? (vi.imageLinks.thumbnail || vi.imageLinks.smallThumbnail || "").replace("http://", "https://") : ""
+        };
+      });
   }
 
   function parseRakutenDate(s) {
