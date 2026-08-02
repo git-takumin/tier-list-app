@@ -251,7 +251,7 @@
     </div>
     <div class="field">
       <div class="autofetch-row">
-        <button class="btn-primary" id="autoFetchRakutenBtn" type="button" style="display:none;">🔍 楽天ブックスで検索</button>
+        <button class="btn-ghost" id="autoFetchRakutenBtn" type="button" style="display:none;">🔍 Google Booksで検索</button>
         <button class="btn-ghost" id="autoFetchBtn" type="button">🔍 タイトルから自動取得</button>
         <button class="btn-ghost" id="autoFetchMangaBtn" type="button" style="display:none;">🔍 AniListで検索（漫画向け）</button>
       </div>
@@ -899,7 +899,7 @@
     autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
     try {
       let results;
-      if (fCategory.value === "book") results = await searchBook(q, author);
+      if (fCategory.value === "book") results = await searchBookRakuten(q, author);
       else if (fCategory.value === "anime") results = await searchAnime(q);
       else results = await searchMovie(q);
       renderAutoFetchResults(results);
@@ -915,7 +915,7 @@
     if (!q && !author) { fTitle.focus(); return; }
     autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
     try {
-      const results = await searchBookRakuten(q, author);
+      const results = await searchBook(q, author);
       renderAutoFetchResults(results);
     } catch (e) {
       autoFetchResults.innerHTML = '<div class="af-error">' + (e.message || "検索に失敗しました（通信環境をご確認ください）") + '</div>';
