@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📚🎬 作品ティア表</title>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --panel: #ffffff;
+    --text: #1f2430;
+    --text-dim: #6b7280;
+    --border: #e2e4ea;
+    --accent: #6366f1;
+    --pool-bg: #eceef3;
+    --card-bg: #ffffff;
+    --card-border: #d7d9e0;
+    --danger: #e5484d;
+    --star: #f5a623;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d; --panel: #1f2229; --text: #eceef1; --text-dim: #9aa0ac;
+      --border: #2c2f38; --pool-bg: #22252c; --card-bg: #2a2d35; --card-border: #3a3d47;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181d; --panel: #1f2229; --text: #eceef1; --text-dim: #9aa0ac;
+    --border: #2c2f38; --pool-bg: #22252c; --card-bg: #2a2d35; --card-border: #3a3d47;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6fa; --panel: #ffffff; --text: #1f2430; --text-dim: #6b7280;
+    --border: #e2e4ea; --pool-bg: #eceef3; --card-bg: #ffffff; --card-border: #d7d9e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 24px 16px 80px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  h1 .bar { width: 6px; height: 1.3em; background: var(--accent); border-radius: 3px; display: inline-block; }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 18px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tab {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text-dim);
+    padding: 7px 14px; border-radius: 999px; font-size: 0.85rem; cursor: pointer; font-weight: 600;
+  }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .search {
+    flex: 1; min-width: 160px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font-size: 0.85rem;
+  }
+  .search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .sort-select {
+    padding: 8px 10px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font-size: 0.85rem;
+  }
+  .spacer { flex: 1; }
+
+  button { border: none; border-radius: 8px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; font-weight: 600; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
+
+  .board { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .tier-row { display: flex; min-height: 168px; background: var(--panel); }
+  .tier-row + .tier-row { border-top: 1px solid var(--border); }
+  .tier-label { width: 48px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: 800; color: #1f2430; }
+  .tier-content { flex: 1; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; padding: 8px; min-height: 168px; }
+  .tier-content.dragover { background: rgba(120,120,255,0.08); }
+
+  .pool-section { margin-top: 8px; }
+  .pool-title { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px; font-weight: 600; }
+  .pool-content {
+    display: flex; flex-wrap: wrap; gap: 8px; min-height: 160px; padding: 12px;
+    background: var(--pool-bg); border: 1px dashed var(--border); border-radius: 10px;
+  }
+  .pool-content.dragover { background: rgba(120,120,255,0.12); }
+
+  .card {
+    width: 104px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px;
+    overflow: hidden; cursor: grab; user-select: none; touch-action: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06); position: relative; display: flex; flex-direction: column; flex: none;
+  }
+  .card:active { cursor: grabbing; }
+  .card .thumb { width: 100%; height: 138px; object-fit: cover; background: var(--pool-bg); display: block; }
+  .card .thumb.placeholder { display: flex; align-items: center; justify-content: center; font-size: 2.2rem; color: var(--text-dim); }
+  .card .info { padding: 5px 6px 6px; }
+  .card .title { font-size: 0.72rem; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 1.8em; }
+  .card .meta { font-size: 0.6rem; color: var(--text-dim); margin-top: 3px; display: flex; justify-content: space-between; align-items: center; gap: 2px; }
+  .card .stars { color: var(--star); letter-spacing: -1px; white-space: nowrap; }
+  .card .tags-row { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .card .tag-pill { font-size: 0.56rem; background: var(--pool-bg); color: var(--text-dim); padding: 1px 5px; border-radius: 999px; border: 1px solid var(--border); line-height: 1.4; }
+  .card .volume-count { font-size: 0.6rem; color: var(--accent); font-weight: 700; margin-top: 3px; }
+  .card .unrated-badge { font-size: 0.58rem; color: var(--star); margin-top: 2px; }
+  .card .del {
+    position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 0.7rem; line-height: 18px; text-align: center; padding: 0;
+  }
+  .card .del:hover { background: var(--danger); }
+  .card .badge {
+    position: absolute; top: 3px; left: 3px; font-size: 0.72rem; background: rgba(255,255,255,0.88);
+    border-radius: 4px; padding: 0 3px; line-height: 1.4;
+  }
+  .card.dragging { opacity: 0.35; }
+  .card.ghost { position: fixed; pointer-events: none; z-index: 999; opacity: 0.92; transform: scale(1.04); box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
+
+  .empty-hint { color: var(--text-dim); font-size: 0.8rem; font-style: italic; padding: 4px; }
+  .footer-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
+  .footer-actions-left { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center;
+    justify-content: center; z-index: 2000; padding: 16px;
+  }
+  .modal { background: var(--panel); border-radius: 12px; padding: 22px; width: 360px; max-width: 100%; max-height: 88vh; overflow: auto; }
+  .modal h2 { margin: 0 0 16px; font-size: 1.1rem; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 5px; font-weight: 600; }
+  .field input[type="text"], .field input[type="date"], .field select {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 0.9rem;
+  }
+  .field input[type="file"] { font-size: 0.8rem; color: var(--text-dim); }
+  .img-preview { width: 88px; height: 118px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); background: var(--pool-bg); margin-top: 8px; }
+  .star-picker { display: flex; gap: 4px; font-size: 1.4rem; cursor: pointer; }
+  .star-picker span { color: var(--card-border); }
+  .star-picker span.filled { color: var(--star); }
+  .modal-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 18px; }
+  .modal-actions .right { display: flex; gap: 8px; }
+
+  .autofetch-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .autofetch-row .btn-ghost { white-space: nowrap; padding: 8px 12px; font-size: 0.8rem; }
+  .autofetch-results { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; }
+  .af-row { display: flex; gap: 8px; align-items: center; padding: 6px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+  .af-row:hover { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+  .af-thumb { width: 36px; height: 48px; object-fit: cover; border-radius: 4px; background: var(--pool-bg); flex: none; }
+  .af-text { flex: 1; min-width: 0; }
+  .af-title { font-size: 0.8rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .af-date { font-size: 0.7rem; color: var(--text-dim); }
+  .af-loading, .af-empty, .af-error { font-size: 0.8rem; color: var(--text-dim); padding: 4px 2px; }
+  .af-error { color: var(--danger); }
+  .settings-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+  .dup-warning { font-size: 0.78rem; color: var(--star); margin-top: 6px; font-weight: 600; }
+  .volume-row {
+    display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 8px;
+    padding: 6px; border: 1px solid var(--border); border-radius: 8px;
+  }
+  .volume-row .vr-line1 { display: flex; gap: 4px; width: 100%; }
+  .volume-row .vr-line2 { display: flex; gap: 4px; width: 100%; }
+  .volume-row input[type="text"] {
+    flex: 1; min-width: 0; padding: 6px 8px; font-size: 0.78rem; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  .volume-row input[type="date"] {
+    flex: 1; min-width: 0; padding: 6px 6px; font-size: 0.75rem; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  .volume-row select {
+    flex: none; width: auto; padding: 6px 4px; font-size: 0.75rem; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  .volume-row .del-volume {
+    flex: none; border: none; background: transparent; color: var(--text-dim);
+    cursor: pointer; font-size: 0.9rem; padding: 2px 8px;
+  }
+  .volume-row .del-volume:hover { color: var(--danger); }
+  .volume-row .reorder-volume {
+    flex: none; border: 1px solid var(--border); background: var(--bg); color: var(--text-dim);
+    cursor: pointer; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+  }
+  .volume-row .reorder-volume:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+  .volume-row .reorder-volume:disabled { opacity: 0.3; cursor: default; }
+  .volumes-empty-hint { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px; }
+  .volumes-hint { font-size: 0.72rem; color: var(--text-dim); margin-bottom: 8px; line-height: 1.5; }
+  .af-add-volume {
+    flex: none; border: 1px solid var(--border); background: var(--bg); color: var(--accent);
+    font-size: 0.65rem; padding: 3px 6px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  }
+  .af-add-volume:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .af-row { position: relative; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="bar"></span>📚🎬 作品ティア表</h1>
+  <div class="subtitle">画像・発売日・評価を登録して管理し、カードをドラッグしてランク分けできます（自動保存）</div>
+
+  <div class="controls">
+    <div class="tabs" id="categoryTabs"></div>
+    <input type="text" class="search" id="searchInput" placeholder="タイトルで検索">
+    <select class="sort-select" id="sortSelect">
+      <option value="">並び替え...</option>
+      <option value="rating-desc">評価が高い順</option>
+      <option value="rating-asc">評価が低い順</option>
+      <option value="date-desc">発売日が新しい順</option>
+      <option value="date-asc">発売日が古い順</option>
+      <option value="title-asc">タイトル順</option>
+    </select>
+    <button class="btn-ghost" id="applySortBtn">並び替え実行</button>
+    <select class="sort-select" id="tagFilterSelect">
+      <option value="">タグ: すべて</option>
+    </select>
+    <div class="spacer"></div>
+    <button class="btn-ghost" id="openSettingsBtn">⚙ 設定</button>
+    <button class="btn-primary" id="openAddBtn">＋ 追加</button>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="pool-section">
+    <div class="pool-title">未分類</div>
+    <div class="pool-content" id="pool-content" data-tier="pool"></div>
+  </div>
+
+  <div class="footer-actions">
+    <div class="footer-actions-left">
+      <button class="btn-ghost" id="exportBtn">⬇ エクスポート</button>
+      <button class="btn-ghost" id="importBtn">⬆ インポート</button>
+      <input type="file" id="importFileInput" accept="application/json" style="display:none;">
+    </div>
+    <button class="btn-ghost" id="resetBtn">全てリセット</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" style="display:none;">
+  <div class="modal">
+    <h2 id="modalTitle">作品を追加</h2>
+    <div class="field">
+      <label>カテゴリ</label>
+      <select id="f-category">
+        <option value="book">📚 書籍</option>
+        <option value="anime">📺 アニメ</option>
+        <option value="movie">🎬 映画</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>タイトル</label>
+      <input type="text" id="f-title" maxlength="80">
+      <div class="dup-warning" id="dupWarning" style="display:none;"></div>
+    </div>
+    <div class="field" id="authorField" style="display:none;">
+      <label>著者名（任意・書籍の検索精度が上がります）</label>
+      <input type="text" id="f-author" placeholder="例: スティーブン・R・コヴィー">
+    </div>
+    <div class="field">
+      <div class="autofetch-row">
+        <button class="btn-ghost" id="autoFetchBtn" type="button">🔍 タイトルから自動取得</button>
+        <button class="btn-ghost" id="autoFetchRakutenBtn" type="button" style="display:none;">🔍 楽天ブックスで検索</button>
+        <button class="btn-ghost" id="autoFetchMangaBtn" type="button" style="display:none;">🔍 AniListで検索（漫画向け）</button>
+      </div>
+      <div class="autofetch-results" id="autoFetchResults"></div>
+    </div>
+    <div class="field">
+      <label>画像ファイル</label>
+      <input type="file" id="f-imagefile" accept="image/*">
+      <img id="f-preview" class="img-preview" style="display:none;">
+    </div>
+    <div class="field">
+      <label>または画像URL</label>
+      <input type="text" id="f-imageurl" placeholder="https://...">
+    </div>
+    <div class="field" id="dateField">
+      <label id="f-datelabel">発売日</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="field" id="ratingField">
+      <label>評価</label>
+      <div class="star-picker" id="f-stars"></div>
+    </div>
+    <div class="field">
+      <label id="volumesLabel">巻・話数の管理（任意）</label>
+      <div class="volumes-hint" id="volumesHint">登録すると、上の発売日・評価の代わりに巻ごとの記録で管理されます</div>
+      <div id="volumesList"></div>
+      <div class="autofetch-row">
+        <button class="btn-ghost" id="addVolumeBtn" type="button">＋ 手動で追加</button>
+        <button class="btn-ghost" id="sortVolumesBtn" type="button">日付順に並び替え</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>タグ（任意・カンマ区切りで複数可）</label>
+      <input type="text" id="f-tags" placeholder="例: ラノベ, シリーズ物, エッセイ">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="deleteItemBtn" style="display:none;">削除</button>
+      <div class="right">
+        <button class="btn-ghost" id="cancelModalBtn">キャンセル</button>
+        <button class="btn-primary" id="saveItemBtn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settingsOverlay" style="display:none;">
+  <div class="modal">
+    <h2>設定</h2>
+    <div class="field">
+      <label>Google Books APIキー（書籍の自動取得に使用）</label>
+      <input type="text" id="booksKeyInput" placeholder="Google Books APIキーを貼り付け">
+      <div class="settings-hint">
+        console.cloud.google.com でプロジェクトを作成 →「APIとサービス」→「ライブラリ」で「Books API」を有効化 →「認証情報」でAPIキーを作成、を貼り付けてください（無料、1日1000件まで）。
+      </div>
+    </div>
+    <div class="field">
+      <label>TMDb APIキー（映画の自動取得に使用）</label>
+      <input type="text" id="tmdbKeyInput" placeholder="TMDbのAPIキーを貼り付け">
+      <div class="settings-hint">
+        themoviedb.org で無料登録し、アカウント設定→APIから取得したAPIキー（v3 auth）を貼り付けてください。アニメの自動取得にはキーは不要です。
+      </div>
+    </div>
+    <div class="field">
+      <label>楽天ブックス アプリID（書籍の自動取得に使用）</label>
+      <input type="text" id="rakutenKeyInput" placeholder="楽天ブックスのアプリIDを貼り付け">
+      <div class="settings-hint">
+        webservice.rakuten.co.jp/app/create で楽天会員登録（無料）の上アプリを新規作成し、発行された「アプリID」を貼り付けてください。小説・漫画・ビジネス書など幅広いジャンルに対応しています。
+      </div>
+    </div>
+    <div class="field">
+      <label>楽天ブックス アクセスキー（書籍の自動取得に使用）</label>
+      <input type="text" id="rakutenSecretInput" placeholder="pk_... で始まるアクセスキーを貼り付け">
+      <div class="settings-hint">
+        2026年2月の仕様変更により、アプリIDに加えてアクセスキー（pk_で始まる文字列）も必須になりました。アプリの管理画面に表示されています。
+      </div>
+    </div>
+    <div class="modal-actions" style="justify-content:flex-end;">
+      <button class="btn-ghost" id="cancelSettingsBtn">キャンセル</button>
+      <button class="btn-primary" id="saveSettingsBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const STORAGE_KEY = "tierdb-v1";
+  const TMDB_KEY_STORAGE = "tierdb-tmdb-key";
+  const BOOKS_KEY_STORAGE = "tierdb-books-key";
+  const RAKUTEN_KEY_STORAGE = "tierdb-rakuten-key";
+  const RAKUTEN_SECRET_STORAGE = "tierdb-rakuten-secret";
+  const TIERS = [
+    { key: "S", color: "#ff7f7f" },
+    { key: "A", color: "#ffbf7f" },
+    { key: "B", color: "#ffe57f" },
+    { key: "C", color: "#c6f07f" },
+    { key: "D", color: "#7fd4ff" },
+    { key: "F", color: "#c9c9c9" }
+  ];
+  const CATEGORIES = {
+    book:  { label: "書籍",   emoji: "📚", dateLabel: "発売日", volumeUnit: "巻" },
+    anime: { label: "アニメ", emoji: "📺", dateLabel: "放送日", volumeUnit: "期" },
+    movie: { label: "映画",   emoji: "🎬", dateLabel: "公開日", volumeUnit: "作" }
+  };
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    const tiers = { pool: [] };
+    TIERS.forEach(t => tiers[t.key] = []);
+    return { items: {}, tiers };
+  }
+
+  let state = loadState();
+  TIERS.forEach(t => { if (!state.tiers[t.key]) state.tiers[t.key] = []; });
+  if (!state.tiers.pool) state.tiers.pool = [];
+
+  let currentFilter = "all";
+  let currentSearch = "";
+  let currentTagFilter = "";
+  let editingId = null;
+  let currentRating = 0;
+
+  function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  function genId() { return "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function findLocation(id) {
+    for (const key of Object.keys(state.tiers)) {
+      const idx = state.tiers[key].indexOf(id);
+      if (idx !== -1) return { key, idx };
+    }
+    return null;
+  }
+
+  function findDuplicate(title, category, excludeId) {
+    const norm = (title || "").trim().toLowerCase();
+    if (!norm) return null;
+    for (const id of Object.keys(state.items)) {
+      if (id === excludeId) continue;
+      const it = state.items[id];
+      if (it.category === category && (it.title || "").trim().toLowerCase() === norm) return id;
+    }
+    return null;
+  }
+
+  function removeItem(id) {
+    const loc = findLocation(id);
+    if (loc) state.tiers[loc.key].splice(loc.idx, 1);
+    delete state.items[id];
+    save();
+    render();
+  }
+
+  function moveItem(id, targetKey, targetIndex) {
+    const loc = findLocation(id);
+    if (!loc) return;
+    state.tiers[loc.key].splice(loc.idx, 1);
+    let arr = state.tiers[targetKey];
+    if (targetIndex == null || targetIndex > arr.length) targetIndex = arr.length;
+    arr.splice(targetIndex, 0, id);
+    save();
+  }
+
+  // ---------- Sorting ----------
+  function compareItems(aId, bId, mode) {
+    const a = state.items[aId], b = state.items[bId];
+    if (!a || !b) return 0;
+    switch (mode) {
+      case "rating-desc": return (b.rating || 0) - (a.rating || 0);
+      case "rating-asc": return (a.rating || 0) - (b.rating || 0);
+      case "date-desc":
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return b.date.localeCompare(a.date);
+      case "date-asc":
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return a.date.localeCompare(b.date);
+      case "title-asc":
+        return (a.title || "").localeCompare(b.title || "", "ja");
+      default:
+        return 0;
+    }
+  }
+
+  function applySort(mode) {
+    if (!mode) return;
+    const allTierKeys = TIERS.map(t => t.key).concat(["pool"]);
+    allTierKeys.forEach(key => {
+      state.tiers[key].sort((a, b) => compareItems(a, b, mode));
+    });
+    save();
+    render();
+  }
+
+  document.getElementById("applySortBtn").addEventListener("click", () => {
+    const mode = document.getElementById("sortSelect").value;
+    applySort(mode);
+  });
+
+  // ---------- Category tabs ----------
+  const categoryTabsEl = document.getElementById("categoryTabs");
+  function renderTabs() {
+    categoryTabsEl.innerHTML = "";
+    const all = document.createElement("button");
+    all.className = "tab" + (currentFilter === "all" ? " active" : "");
+    all.textContent = "全て";
+    all.addEventListener("click", () => { currentFilter = "all"; renderTabs(); render(); });
+    categoryTabsEl.appendChild(all);
+    Object.keys(CATEGORIES).forEach(key => {
+      const c = CATEGORIES[key];
+      const btn = document.createElement("button");
+      btn.className = "tab" + (currentFilter === key ? " active" : "");
+      btn.textContent = c.emoji + " " + c.label;
+      btn.addEventListener("click", () => { currentFilter = key; renderTabs(); render(); });
+      categoryTabsEl.appendChild(btn);
+    });
+  }
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    currentSearch = e.target.value.trim().toLowerCase();
+    render();
+  });
+
+  // ---------- Board rendering ----------
+  const board = document.getElementById("board");
+  const poolContent = document.getElementById("pool-content");
+
+  function itemVisible(item) {
+    if (currentFilter !== "all" && item.category !== currentFilter) return false;
+    if (currentSearch) {
+      const inTitle = item.title.toLowerCase().includes(currentSearch);
+      const inTags = (item.tags || []).some(t => t.toLowerCase().includes(currentSearch));
+      if (!inTitle && !inTags) return false;
+    }
+    if (currentTagFilter && !(item.tags || []).includes(currentTagFilter)) return false;
+    return true;
+  }
+
+  const tagFilterSelect = document.getElementById("tagFilterSelect");
+  function renderTagFilterOptions() {
+    const allTags = new Set();
+    Object.values(state.items).forEach(it => (it.tags || []).forEach(t => allTags.add(t)));
+    const sorted = Array.from(allTags).sort((a, b) => a.localeCompare(b, "ja"));
+    const prevValue = tagFilterSelect.value;
+    tagFilterSelect.innerHTML = '<option value="">タグ: すべて</option>' +
+      sorted.map(t => '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>').join("");
+    if (sorted.includes(prevValue)) { tagFilterSelect.value = prevValue; }
+    else { tagFilterSelect.value = ""; currentTagFilter = ""; }
+  }
+  tagFilterSelect.addEventListener("change", () => {
+    currentTagFilter = tagFilterSelect.value;
+    render();
+  });
+
+  function render() {
+    renderTagFilterOptions();
+    board.innerHTML = "";
+    poolContent.innerHTML = "";
+    TIERS.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "tier-row";
+      const label = document.createElement("div");
+      label.className = "tier-label";
+      label.textContent = t.key;
+      label.style.background = t.color;
+      row.appendChild(label);
+      const content = document.createElement("div");
+      content.className = "tier-content";
+      content.dataset.tier = t.key;
+      row.appendChild(content);
+      board.appendChild(row);
+      renderCards(content, t.key);
+    });
+    renderCards(poolContent, "pool");
+    if (state.tiers.pool.filter(id => state.items[id] && itemVisible(state.items[id])).length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "empty-hint";
+      hint.textContent = "ここに新しい作品が入ります";
+      poolContent.appendChild(hint);
+    }
+  }
+
+  function renderCards(container, tierKey) {
+    state.tiers[tierKey].forEach(id => {
+      const item = state.items[id];
+      if (!item || !itemVisible(item)) return;
+      const card = document.createElement("div");
+      card.className = "card";
+      card.dataset.id = id;
+
+      if (item.image) {
+        const img = document.createElement("img");
+        img.className = "thumb";
+        img.src = item.image;
+        img.loading = "lazy";
+        card.appendChild(img);
+      } else {
+        const ph = document.createElement("div");
+        ph.className = "thumb placeholder";
+        ph.textContent = CATEGORIES[item.category] ? CATEGORIES[item.category].emoji : "❔";
+        card.appendChild(ph);
+      }
+
+      const badge = document.createElement("div");
+      badge.className = "badge";
+      badge.textContent = CATEGORIES[item.category] ? CATEGORIES[item.category].emoji : "";
+      card.appendChild(badge);
+
+      const del = document.createElement("button");
+      del.className = "del";
+      del.textContent = "×";
+      del.title = "削除";
+      del.addEventListener("click", (e) => { e.stopPropagation(); removeItem(id); });
+      card.appendChild(del);
+
+      const info = document.createElement("div");
+      info.className = "info";
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = item.title;
+      info.appendChild(title);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const dateSpan = document.createElement("span");
+      dateSpan.textContent = item.date || "";
+      const starsSpan = document.createElement("span");
+      starsSpan.className = "stars";
+      starsSpan.textContent = "★".repeat(item.rating || 0) + "☆".repeat(5 - (item.rating || 0));
+      meta.appendChild(dateSpan);
+      meta.appendChild(starsSpan);
+      info.appendChild(meta);
+
+      if (item.volumes && item.volumes.length) {
+        const volCount = document.createElement("div");
+        volCount.className = "volume-count";
+        const unit = CATEGORIES[item.category] ? CATEGORIES[item.category].volumeUnit : "件";
+        volCount.textContent = "全" + item.volumes.length + unit;
+        info.appendChild(volCount);
+
+        const unratedCount = item.volumes.filter(v => !v.rating).length;
+        if (unratedCount > 0) {
+          const unratedBadge = document.createElement("div");
+          unratedBadge.className = "unrated-badge";
+          unratedBadge.textContent = "未評価 " + unratedCount + "件";
+          info.appendChild(unratedBadge);
+        }
+      }
+
+      if (item.tags && item.tags.length) {
+        const tagsRow = document.createElement("div");
+        tagsRow.className = "tags-row";
+        item.tags.forEach(tag => {
+          const pill = document.createElement("span");
+          pill.className = "tag-pill";
+          pill.textContent = tag;
+          tagsRow.appendChild(pill);
+        });
+        info.appendChild(tagsRow);
+      }
+
+      card.appendChild(info);
+      attachDrag(card);
+      container.appendChild(card);
+    });
+  }
+
+  // ---------- Pointer-based drag & drop ----------
+  let dragState = null;
+
+  function attachDrag(card) {
+    card.addEventListener("pointerdown", (e) => {
+      if (e.target.classList.contains("del")) return;
+      const rect = card.getBoundingClientRect();
+      dragState = {
+        id: card.dataset.id,
+        offsetX: e.clientX - rect.left,
+        offsetY: e.clientY - rect.top,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+        ghost: null,
+        origCard: card
+      };
+      e.preventDefault();
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+    });
+  }
+
+  function ensureGhost() {
+    if (dragState.ghost) return;
+    const ghost = dragState.origCard.cloneNode(true);
+    ghost.classList.add("ghost");
+    ghost.style.width = dragState.origCard.getBoundingClientRect().width + "px";
+    document.body.appendChild(ghost);
+    dragState.ghost = ghost;
+    dragState.origCard.classList.add("dragging");
+  }
+
+  function onPointerMove(e) {
+    if (!dragState) return;
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    if (!dragState.moved && Math.abs(dx) + Math.abs(dy) > 4) {
+      dragState.moved = true;
+      ensureGhost();
+    }
+    if (dragState.moved && dragState.ghost) {
+      dragState.ghost.style.left = (e.clientX - dragState.offsetX) + "px";
+      dragState.ghost.style.top = (e.clientY - dragState.offsetY) + "px";
+      updateDropTarget(e);
+    }
+  }
+
+  let lastDropEl = null;
+  function updateDropTarget(e) {
+    if (dragState.ghost) dragState.ghost.style.display = "none";
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (dragState.ghost) dragState.ghost.style.display = "";
+    const zone = el ? el.closest(".tier-content, .pool-content") : null;
+    if (lastDropEl && lastDropEl !== zone) lastDropEl.classList.remove("dragover");
+    if (zone) zone.classList.add("dragover");
+    lastDropEl = zone;
+  }
+
+  function onPointerUp(e) {
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    if (!dragState) return;
+    document.querySelectorAll(".dragover").forEach(el => el.classList.remove("dragover"));
+
+    if (dragState.moved) {
+      if (dragState.ghost) document.body.removeChild(dragState.ghost);
+      dragState.origCard.classList.remove("dragging");
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const zone = el ? el.closest(".tier-content, .pool-content") : null;
+      if (zone) {
+        const targetKey = zone.dataset.tier;
+        const cards = Array.from(zone.querySelectorAll(".card")).filter(c => c.dataset.id !== dragState.id);
+        let insertIndex = cards.length;
+        for (let i = 0; i < cards.length; i++) {
+          const r = cards[i].getBoundingClientRect();
+          if (e.clientX < r.left + r.width / 2) { insertIndex = i; break; }
+        }
+        moveItem(dragState.id, targetKey, insertIndex);
+      }
+      render();
+    } else {
+      openEditModal(dragState.id);
+    }
+    dragState = null;
+  }
+
+  // ---------- Settings (API keys) ----------
+  const settingsOverlay = document.getElementById("settingsOverlay");
+  const tmdbKeyInput = document.getElementById("tmdbKeyInput");
+  const booksKeyInput = document.getElementById("booksKeyInput");
+  const rakutenKeyInput = document.getElementById("rakutenKeyInput");
+  const rakutenSecretInput = document.getElementById("rakutenSecretInput");
+  document.getElementById("openSettingsBtn").addEventListener("click", () => {
+    tmdbKeyInput.value = localStorage.getItem(TMDB_KEY_STORAGE) || "";
+    booksKeyInput.value = localStorage.getItem(BOOKS_KEY_STORAGE) || "";
+    rakutenKeyInput.value = localStorage.getItem(RAKUTEN_KEY_STORAGE) || "";
+    rakutenSecretInput.value = localStorage.getItem(RAKUTEN_SECRET_STORAGE) || "";
+    settingsOverlay.style.display = "flex";
+  });
+  document.getElementById("cancelSettingsBtn").addEventListener("click", () => { settingsOverlay.style.display = "none"; });
+  settingsOverlay.addEventListener("click", (e) => { if (e.target === settingsOverlay) settingsOverlay.style.display = "none"; });
+  document.getElementById("saveSettingsBtn").addEventListener("click", () => {
+    const tv = tmdbKeyInput.value.trim();
+    if (tv) localStorage.setItem(TMDB_KEY_STORAGE, tv); else localStorage.removeItem(TMDB_KEY_STORAGE);
+    const bv = booksKeyInput.value.trim();
+    if (bv) localStorage.setItem(BOOKS_KEY_STORAGE, bv); else localStorage.removeItem(BOOKS_KEY_STORAGE);
+    const rv = rakutenKeyInput.value.trim();
+    if (rv) localStorage.setItem(RAKUTEN_KEY_STORAGE, rv); else localStorage.removeItem(RAKUTEN_KEY_STORAGE);
+    const rsv = rakutenSecretInput.value.trim();
+    if (rsv) localStorage.setItem(RAKUTEN_SECRET_STORAGE, rsv); else localStorage.removeItem(RAKUTEN_SECRET_STORAGE);
+    settingsOverlay.style.display = "none";
+  });
+
+  // ---------- Auto-fetch (title -> date & image) ----------
+  function normalizeDate(d) {
+    if (!d) return "";
+    if (/^\d{4}$/.test(d)) return d + "-01-01";
+    if (/^\d{4}-\d{2}$/.test(d)) return d + "-01";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    return "";
+  }
+
+  async function searchBook(q, author) {
+    const key = localStorage.getItem(BOOKS_KEY_STORAGE);
+    if (!key) { throw new Error("Google Books APIキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
+    let queryStr = q || "";
+    if (author) queryStr += (queryStr ? " " : "") + "inauthor:" + author;
+    const res = await fetch("https://www.googleapis.com/books/v1/volumes?maxResults=30&q=" + encodeURIComponent(queryStr) + "&key=" + encodeURIComponent(key));
+    const json = await res.json();
+    if (!res.ok || json.error) throw new Error((json.error && json.error.message) || "book search failed");
+    return (json.items || []).map(it => {
+      const vi = it.volumeInfo || {};
+      return {
+        title: vi.title || q,
+        date: normalizeDate(vi.publishedDate),
+        image: vi.imageLinks ? (vi.imageLinks.thumbnail || vi.imageLinks.smallThumbnail || "").replace("http://", "https://") : ""
+      };
+    });
+  }
+
+  function parseRakutenDate(s) {
+    if (!s) return "";
+    const m = s.match(/(\d{4})年(\d{1,2})月(\d{1,2})?日?/);
+    if (!m) return "";
+    const y = m[1];
+    const mo = String(m[2]).padStart(2, "0");
+    const d = m[3] ? String(m[3]).padStart(2, "0") : "01";
+    return y + "-" + mo + "-" + d;
+  }
+
+  async function searchBookRakuten(q, author) {
+    const appId = localStorage.getItem(RAKUTEN_KEY_STORAGE);
+    const secret = localStorage.getItem(RAKUTEN_SECRET_STORAGE);
+    if (!appId || !secret) { throw new Error("楽天ブックスのアプリID・アクセスキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
+    let url = "https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?format=json&hits=30&applicationId=" + encodeURIComponent(appId) + "&accessKey=" + encodeURIComponent(secret);
+    if (q) url += "&title=" + encodeURIComponent(q);
+    if (author) url += "&author=" + encodeURIComponent(author);
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error_description || "楽天ブックスの検索に失敗しました");
+    const items = json.items || json.Items || [];
+    return items.map(wrapper => {
+      const it = wrapper.item || wrapper.Item || wrapper || {};
+      return {
+        title: it.title || q,
+        date: parseRakutenDate(it.salesDate),
+        image: it.largeImageUrl || it.mediumImageUrl || ""
+      };
+    });
+  }
+
+  async function searchAniListMedia(q, mediaType) {
+    const query = "query ($q: String, $type: MediaType) { Page(perPage: 30) { media(search: $q, type: $type) { title { romaji english native } startDate { year month day } coverImage { large } } } }";
+    const res = await fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables: { q, type: mediaType } })
+    });
+    if (!res.ok) throw new Error((mediaType === "MANGA" ? "manga" : "anime") + " search failed");
+    const json = await res.json();
+    const media = (json.data && json.data.Page && json.data.Page.media) || [];
+    return media.map(m => {
+      const title = m.title.native || m.title.romaji || m.title.english || q;
+      let date = "";
+      if (m.startDate && m.startDate.year) {
+        const y = String(m.startDate.year).padStart(4, "0");
+        const mo = String(m.startDate.month || 1).padStart(2, "0");
+        const d = String(m.startDate.day || 1).padStart(2, "0");
+        date = y + "-" + mo + "-" + d;
+      }
+      return { title, date, image: m.coverImage ? (m.coverImage.large || "") : "" };
+    });
+  }
+
+  async function searchAnime(q) { return searchAniListMedia(q, "ANIME"); }
+  async function searchMangaAniList(q) { return searchAniListMedia(q, "MANGA"); }
+
+  async function searchMovie(q) {
+    const key = localStorage.getItem(TMDB_KEY_STORAGE);
+    if (!key) { throw new Error("TMDbのAPIキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
+    const baseUrl = "https://api.themoviedb.org/3/search/movie?language=ja-JP&query=" + encodeURIComponent(q) + "&api_key=" + encodeURIComponent(key);
+    const page1 = await fetch(baseUrl + "&page=1").then(r => r.json());
+    if (page1.status_code) throw new Error(page1.status_message || "movie search failed");
+    let results = page1.results || [];
+    if (results.length < 30 && (page1.total_pages || 1) > 1) {
+      const page2 = await fetch(baseUrl + "&page=2").then(r => r.json());
+      if (!page2.status_code) results = results.concat(page2.results || []);
+    }
+    return results.slice(0, 30).map(it => ({
+      title: it.title || q,
+      date: normalizeDate(it.release_date),
+      image: it.poster_path ? ("https://image.tmdb.org/t/p/w300" + it.poster_path) : ""
+    }));
+  }
+
+  const autoFetchBtn = document.getElementById("autoFetchBtn");
+  const autoFetchResults = document.getElementById("autoFetchResults");
+
+  function renderAutoFetchResults(results) {
+    autoFetchResults.innerHTML = "";
+    if (!results.length) {
+      autoFetchResults.innerHTML = '<div class="af-empty">見つかりませんでした</div>';
+      return;
+    }
+    results.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "af-row";
+      const img = document.createElement("img");
+      img.className = "af-thumb";
+      if (r.image) img.src = r.image; else img.style.visibility = "hidden";
+      const text = document.createElement("div");
+      text.className = "af-text";
+      const t = document.createElement("div"); t.className = "af-title"; t.textContent = r.title;
+      const d = document.createElement("div"); d.className = "af-date"; d.textContent = r.date || "日付不明";
+      text.appendChild(t); text.appendChild(d);
+      row.appendChild(img); row.appendChild(text);
+
+      const addVolBtn = document.createElement("button");
+      addVolBtn.type = "button";
+      addVolBtn.className = "af-add-volume";
+      addVolBtn.textContent = "＋" + (CATEGORIES[fCategory.value] ? CATEGORIES[fCategory.value].volumeUnit : "");
+      addVolBtn.title = "巻・話数として追加";
+      addVolBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        currentVolumes.push({ label: r.title, date: r.date || "", rating: 0 });
+        renderVolumesList();
+      });
+      row.appendChild(addVolBtn);
+
+      row.addEventListener("click", () => {
+        fTitle.value = r.title;
+        fDate.value = r.date || "";
+        if (r.image) {
+          pendingImage = r.image;
+          fImageUrl.value = r.image;
+          fImageFile.value = "";
+          fPreview.src = r.image;
+          fPreview.style.display = "";
+        }
+        autoFetchResults.innerHTML = "";
+        updateDupWarning();
+      });
+      autoFetchResults.appendChild(row);
+    });
+  }
+
+  autoFetchBtn.addEventListener("click", async () => {
+    const q = fTitle.value.trim();
+    const author = fAuthor.value.trim();
+    if (!q && !(fCategory.value === "book" && author)) { fTitle.focus(); return; }
+    autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
+    try {
+      let results;
+      if (fCategory.value === "book") results = await searchBook(q, author);
+      else if (fCategory.value === "anime") results = await searchAnime(q);
+      else results = await searchMovie(q);
+      renderAutoFetchResults(results);
+    } catch (e) {
+      autoFetchResults.innerHTML = '<div class="af-error">' + (e.message || "検索に失敗しました（通信環境をご確認ください）") + '</div>';
+    }
+  });
+
+  const autoFetchRakutenBtn = document.getElementById("autoFetchRakutenBtn");
+  autoFetchRakutenBtn.addEventListener("click", async () => {
+    const q = fTitle.value.trim();
+    const author = fAuthor.value.trim();
+    if (!q && !author) { fTitle.focus(); return; }
+    autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
+    try {
+      const results = await searchBookRakuten(q, author);
+      renderAutoFetchResults(results);
+    } catch (e) {
+      autoFetchResults.innerHTML = '<div class="af-error">' + (e.message || "検索に失敗しました（通信環境をご確認ください）") + '</div>';
+    }
+  });
+
+  const autoFetchMangaBtn = document.getElementById("autoFetchMangaBtn");
+  autoFetchMangaBtn.addEventListener("click", async () => {
+    const q = fTitle.value.trim();
+    if (!q) { fTitle.focus(); return; }
+    autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
+    try {
+      const results = await searchMangaAniList(q);
+      renderAutoFetchResults(results);
+    } catch (e) {
+      autoFetchResults.innerHTML = '<div class="af-error">' + (e.message || "検索に失敗しました（通信環境をご確認ください）") + '</div>';
+    }
+  });
+
+  // ---------- Modal (add / edit) ----------
+  const overlay = document.getElementById("modalOverlay");
+  const modalTitle = document.getElementById("modalTitle");
+  const fTitle = document.getElementById("f-title");
+  const fCategory = document.getElementById("f-category");
+  const fAuthor = document.getElementById("f-author");
+  const authorField = document.getElementById("authorField");
+  const fImageFile = document.getElementById("f-imagefile");
+  const fImageUrl = document.getElementById("f-imageurl");
+  const fPreview = document.getElementById("f-preview");
+  const fDate = document.getElementById("f-date");
+  const fDateLabel = document.getElementById("f-datelabel");
+  const dateField = document.getElementById("dateField");
+  const ratingField = document.getElementById("ratingField");
+  const fStars = document.getElementById("f-stars");
+  const fTags = document.getElementById("f-tags");
+  const volumesList = document.getElementById("volumesList");
+  const volumesLabel = document.getElementById("volumesLabel");
+  const addVolumeBtn = document.getElementById("addVolumeBtn");
+  const sortVolumesBtn = document.getElementById("sortVolumesBtn");
+  const deleteItemBtn = document.getElementById("deleteItemBtn");
+  let currentVolumes = [];
+
+  function renderVolumesList() {
+    dateField.style.display = currentVolumes.length > 0 ? "none" : "";
+    ratingField.style.display = currentVolumes.length > 0 ? "none" : "";
+    volumesList.innerHTML = "";
+    if (currentVolumes.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "volumes-empty-hint";
+      hint.textContent = "巻・話数を登録すると、1枚のカードにまとめて表示できます";
+      volumesList.appendChild(hint);
+    }
+    currentVolumes.forEach((vol, idx) => {
+      const row = document.createElement("div");
+      row.className = "volume-row";
+
+      const line1 = document.createElement("div");
+      line1.className = "vr-line1";
+
+      const labelInput = document.createElement("input");
+      labelInput.type = "text";
+      labelInput.placeholder = "例: 1巻 / 第1期";
+      labelInput.maxLength = 40;
+      labelInput.value = vol.label || "";
+      labelInput.addEventListener("input", () => { vol.label = labelInput.value; });
+      line1.appendChild(labelInput);
+
+      const upBtn = document.createElement("button");
+      upBtn.type = "button";
+      upBtn.className = "reorder-volume";
+      upBtn.textContent = "▲";
+      upBtn.disabled = idx === 0;
+      upBtn.addEventListener("click", () => {
+        if (idx === 0) return;
+        const tmp = currentVolumes[idx - 1];
+        currentVolumes[idx - 1] = currentVolumes[idx];
+        currentVolumes[idx] = tmp;
+        renderVolumesList();
+      });
+      line1.appendChild(upBtn);
+
+      const downBtn = document.createElement("button");
+      downBtn.type = "button";
+      downBtn.className = "reorder-volume";
+      downBtn.textContent = "▼";
+      downBtn.disabled = idx === currentVolumes.length - 1;
+      downBtn.addEventListener("click", () => {
+        if (idx === currentVolumes.length - 1) return;
+        const tmp = currentVolumes[idx + 1];
+        currentVolumes[idx + 1] = currentVolumes[idx];
+        currentVolumes[idx] = tmp;
+        renderVolumesList();
+      });
+      line1.appendChild(downBtn);
+
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "del-volume";
+      delBtn.textContent = "×";
+      delBtn.addEventListener("click", () => {
+        currentVolumes.splice(idx, 1);
+        renderVolumesList();
+      });
+      line1.appendChild(delBtn);
+      row.appendChild(line1);
+
+      const line2 = document.createElement("div");
+      line2.className = "vr-line2";
+
+      const dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.value = vol.date || "";
+      dateInput.addEventListener("input", () => { vol.date = dateInput.value; });
+      line2.appendChild(dateInput);
+
+      const ratingSelect = document.createElement("select");
+      [0, 1, 2, 3, 4, 5].forEach(n => {
+        const opt = document.createElement("option");
+        opt.value = String(n);
+        opt.textContent = n === 0 ? "評価なし" : "★".repeat(n);
+        if ((vol.rating || 0) === n) opt.selected = true;
+        ratingSelect.appendChild(opt);
+      });
+      ratingSelect.addEventListener("change", () => { vol.rating = Number(ratingSelect.value); });
+      line2.appendChild(ratingSelect);
+      row.appendChild(line2);
+
+      volumesList.appendChild(row);
+    });
+  }
+
+  addVolumeBtn.addEventListener("click", () => {
+    currentVolumes.push({ label: "", date: "", rating: 0 });
+    renderVolumesList();
+  });
+
+  sortVolumesBtn.addEventListener("click", () => {
+    currentVolumes.sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date.localeCompare(b.date);
+    });
+    renderVolumesList();
+  });
+  let pendingImage = "";
+
+  function buildStarPicker() {
+    fStars.innerHTML = "";
+    for (let i = 1; i <= 5; i++) {
+      const s = document.createElement("span");
+      s.textContent = i <= currentRating ? "★" : "☆";
+      s.classList.toggle("filled", i <= currentRating);
+      s.addEventListener("click", () => {
+        currentRating = (currentRating === i) ? 0 : i;
+        buildStarPicker();
+      });
+      fStars.appendChild(s);
+    }
+  }
+
+  fCategory.addEventListener("change", () => {
+    fDateLabel.textContent = CATEGORIES[fCategory.value].dateLabel;
+    authorField.style.display = fCategory.value === "book" ? "" : "none";
+    autoFetchMangaBtn.style.display = fCategory.value === "book" ? "" : "none";
+    autoFetchRakutenBtn.style.display = fCategory.value === "book" ? "" : "none";
+    volumesLabel.textContent = (CATEGORIES[fCategory.value].volumeUnit) + "の管理（任意）";
+    sortVolumesBtn.textContent = CATEGORIES[fCategory.value].dateLabel + "順に並び替え";
+    updateDupWarning();
+  });
+
+  const dupWarning = document.getElementById("dupWarning");
+  function updateDupWarning() {
+    const dupId = findDuplicate(fTitle.value, fCategory.value, editingId);
+    if (dupId) {
+      const loc = findLocation(dupId);
+      const tierLabel = loc ? (loc.key === "pool" ? "未分類" : loc.key + "ティア") : "";
+      dupWarning.textContent = "⚠ 同じタイトルが既に登録されています（" + tierLabel + "）";
+      dupWarning.style.display = "";
+    } else {
+      dupWarning.style.display = "none";
+    }
+  }
+  fTitle.addEventListener("input", updateDupWarning);
+
+  function resizeImageFile(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height) { if (width > maxDim) { height = height * maxDim / width; width = maxDim; } }
+          else { if (height > maxDim) { width = width * maxDim / height; height = maxDim; } }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  fImageFile.addEventListener("change", async () => {
+    const file = fImageFile.files[0];
+    if (!file) return;
+    try {
+      pendingImage = await resizeImageFile(file, 320, 0.8);
+      fImageUrl.value = "";
+      fPreview.src = pendingImage;
+      fPreview.style.display = "";
+    } catch (e) {}
+  });
+  fImageUrl.addEventListener("input", () => {
+    if (fImageUrl.value.trim()) {
+      pendingImage = fImageUrl.value.trim();
+      fPreview.src = pendingImage;
+      fPreview.style.display = "";
+      fImageFile.value = "";
+    } else if (!fImageFile.files[0]) {
+      pendingImage = "";
+      fPreview.style.display = "none";
+    }
+  });
+
+  function openAddModal() {
+    editingId = null;
+    modalTitle.textContent = "作品を追加";
+    fTitle.value = "";
+    fCategory.value = currentFilter !== "all" ? currentFilter : "book";
+    fDateLabel.textContent = CATEGORIES[fCategory.value].dateLabel;
+    fAuthor.value = "";
+    authorField.style.display = fCategory.value === "book" ? "" : "none";
+    autoFetchMangaBtn.style.display = fCategory.value === "book" ? "" : "none";
+    autoFetchRakutenBtn.style.display = fCategory.value === "book" ? "" : "none";
+    fImageFile.value = "";
+    fImageUrl.value = "";
+    pendingImage = "";
+    fPreview.style.display = "none";
+    fDate.value = "";
+    currentRating = 0;
+    buildStarPicker();
+    fTags.value = "";
+    volumesLabel.textContent = CATEGORIES[fCategory.value].volumeUnit + "の管理（任意）";
+    sortVolumesBtn.textContent = CATEGORIES[fCategory.value].dateLabel + "順に並び替え";
+    currentVolumes = [];
+    renderVolumesList();
+    autoFetchResults.innerHTML = "";
+    updateDupWarning();
+    deleteItemBtn.style.display = "none";
+    overlay.style.display = "flex";
+    fTitle.focus();
+  }
+
+  function openEditModal(id) {
+    const item = state.items[id];
+    if (!item) return;
+    editingId = id;
+    modalTitle.textContent = "作品を編集";
+    fTitle.value = item.title;
+    fCategory.value = item.category;
+    fDateLabel.textContent = CATEGORIES[fCategory.value].dateLabel;
+    fAuthor.value = "";
+    authorField.style.display = fCategory.value === "book" ? "" : "none";
+    autoFetchMangaBtn.style.display = fCategory.value === "book" ? "" : "none";
+    autoFetchRakutenBtn.style.display = fCategory.value === "book" ? "" : "none";
+    fImageFile.value = "";
+    pendingImage = item.image || "";
+    if (pendingImage && pendingImage.startsWith("http")) fImageUrl.value = pendingImage; else fImageUrl.value = "";
+    if (pendingImage) { fPreview.src = pendingImage; fPreview.style.display = ""; } else { fPreview.style.display = "none"; }
+    fDate.value = item.date || "";
+    currentRating = item.rating || 0;
+    buildStarPicker();
+    fTags.value = (item.tags || []).join(", ");
+    volumesLabel.textContent = CATEGORIES[fCategory.value].volumeUnit + "の管理（任意）";
+    sortVolumesBtn.textContent = CATEGORIES[fCategory.value].dateLabel + "順に並び替え";
+    currentVolumes = (item.volumes || []).map(v => ({ label: v.label || "", date: v.date || "", rating: v.rating || 0 }));
+    renderVolumesList();
+    autoFetchResults.innerHTML = "";
+    updateDupWarning();
+    deleteItemBtn.style.display = "";
+    overlay.style.display = "flex";
+    fTitle.focus();
+  }
+
+  function closeModal() { overlay.style.display = "none"; editingId = null; }
+
+  document.getElementById("openAddBtn").addEventListener("click", openAddModal);
+  document.getElementById("cancelModalBtn").addEventListener("click", closeModal);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+
+  document.getElementById("saveItemBtn").addEventListener("click", () => {
+    const title = fTitle.value.trim();
+    if (!title) { fTitle.focus(); return; }
+    const tags = fTags.value.split(",").map(s => s.trim()).filter(Boolean);
+    const volumes = currentVolumes
+      .filter(v => v.label.trim() || v.date || v.rating)
+      .map(v => ({ label: v.label.trim(), date: v.date || "", rating: v.rating || 0 }));
+
+    let finalDate = fDate.value;
+    let finalRating = currentRating;
+    if (volumes.length > 0) {
+      const dates = volumes.map(v => v.date).filter(Boolean).sort();
+      finalDate = dates.length ? dates[0] : "";
+      const ratings = volumes.map(v => v.rating).filter(n => n > 0);
+      finalRating = ratings.length ? Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length) : 0;
+    }
+
+    const data = {
+      title,
+      category: fCategory.value,
+      image: pendingImage,
+      date: finalDate,
+      rating: finalRating,
+      tags,
+      volumes
+    };
+    if (editingId) {
+      state.items[editingId] = Object.assign({}, state.items[editingId], data);
+    } else {
+      const id = genId();
+      state.items[id] = data;
+      state.tiers.pool.push(id);
+    }
+    save();
+    closeModal();
+    render();
+  });
+
+  deleteItemBtn.addEventListener("click", () => {
+    if (editingId && confirm("この作品を削除しますか？")) {
+      removeItem(editingId);
+      closeModal();
+    }
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    if (!confirm("全ての項目を削除してリセットします。よろしいですか？")) return;
+    const tiers = { pool: [] };
+    TIERS.forEach(t => tiers[t.key] = []);
+    state = { items: {}, tiers };
+    save();
+    render();
+  });
+
+  // ---------- Export / Import (backup) ----------
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    const payload = { schemaVersion: 1, exportedAt: new Date().toISOString(), state };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    a.href = url;
+    a.download = "tier-list-backup-" + ymd + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  const importFileInput = document.getElementById("importFileInput");
+  document.getElementById("importBtn").addEventListener("click", () => { importFileInput.click(); });
+  importFileInput.addEventListener("change", async () => {
+    const file = importFileInput.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const importedState = (payload && payload.state) ? payload.state : payload;
+      if (!importedState || typeof importedState.items !== "object" || typeof importedState.tiers !== "object") {
+        throw new Error("invalid format");
+      }
+      if (!confirm("現在のデータを置き換えてインポートします。よろしいですか？（元に戻せません）")) { importFileInput.value = ""; return; }
+      TIERS.forEach(t => { if (!importedState.tiers[t.key]) importedState.tiers[t.key] = []; });
+      if (!importedState.tiers.pool) importedState.tiers.pool = [];
+      state = importedState;
+      save();
+      render();
+    } catch (e) {
+      alert("インポートに失敗しました。正しいバックアップファイル（JSON）か確認してください。");
+    }
+    importFileInput.value = "";
+  });
+
+  renderTabs();
+  render();
+})();
+</script>
+</body>
+</html>
