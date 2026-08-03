@@ -128,6 +128,11 @@
     background: var(--bg); color: var(--text); font-size: 0.9rem;
   }
   .field input[type="file"] { font-size: 0.8rem; color: var(--text-dim); }
+  .field textarea {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 0.72rem; font-family: ui-monospace, monospace;
+    resize: vertical;
+  }
   .img-preview { width: 88px; height: 118px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); background: var(--pool-bg); margin-top: 8px; }
   .star-picker { display: flex; gap: 4px; font-size: 1.4rem; cursor: pointer; }
   .star-picker span { color: var(--card-border); }
@@ -224,6 +229,8 @@
       <button class="btn-ghost" id="exportBtn">⬇ エクスポート</button>
       <button class="btn-ghost" id="importBtn">⬆ インポート</button>
       <input type="file" id="importFileInput" accept="application/json" style="display:none;">
+      <button class="btn-ghost" id="copyClipboardBtn">📋 コピー</button>
+      <button class="btn-ghost" id="pasteClipboardBtn">📋 貼り付け</button>
     </div>
     <button class="btn-ghost" id="resetBtn">全てリセット</button>
   </div>
@@ -331,6 +338,34 @@
     <div class="modal-actions" style="justify-content:flex-end;">
       <button class="btn-ghost" id="cancelSettingsBtn">キャンセル</button>
       <button class="btn-primary" id="saveSettingsBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="copyOverlay" style="display:none;">
+  <div class="modal">
+    <h2>クリップボードにコピー</h2>
+    <div class="field">
+      <label>下のテキストをコピーして、メモやチャットなど、もう一方の端末から見られる場所に貼り付けておいてください</label>
+      <textarea id="copyTextarea" readonly rows="10"></textarea>
+    </div>
+    <div class="modal-actions" style="justify-content:flex-end;">
+      <button class="btn-ghost" id="closeCopyBtn">閉じる</button>
+      <button class="btn-primary" id="doCopyBtn">コピーする</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pasteOverlay" style="display:none;">
+  <div class="modal">
+    <h2>クリップボードから貼り付け</h2>
+    <div class="field">
+      <label>コピーしておいたテキストをここに貼り付けてください</label>
+      <textarea id="pasteTextarea" rows="10" placeholder="ここに貼り付け"></textarea>
+    </div>
+    <div class="modal-actions" style="justify-content:flex-end;">
+      <button class="btn-ghost" id="cancelPasteBtn">キャンセル</button>
+      <button class="btn-primary" id="doPasteBtn">読み込む</button>
     </div>
   </div>
 </div>
@@ -1304,6 +1339,57 @@
       alert("インポートに失敗しました。正しいバックアップファイル（JSON）か確認してください。");
     }
     importFileInput.value = "";
+  });
+
+  // ---------- Clipboard copy / paste sync ----------
+  const copyOverlay = document.getElementById("copyOverlay");
+  const copyTextarea = document.getElementById("copyTextarea");
+  document.getElementById("copyClipboardBtn").addEventListener("click", () => {
+    const payload = { schemaVersion: 1, exportedAt: new Date().toISOString(), state };
+    copyTextarea.value = JSON.stringify(payload);
+    copyOverlay.style.display = "flex";
+    setTimeout(() => { copyTextarea.focus(); copyTextarea.select(); }, 50);
+  });
+  document.getElementById("closeCopyBtn").addEventListener("click", () => { copyOverlay.style.display = "none"; });
+  copyOverlay.addEventListener("click", (e) => { if (e.target === copyOverlay) copyOverlay.style.display = "none"; });
+  document.getElementById("doCopyBtn").addEventListener("click", async () => {
+    copyTextarea.focus();
+    copyTextarea.select();
+    try {
+      await navigator.clipboard.writeText(copyTextarea.value);
+      alert("コピーしました。もう一方の端末に貼り付けてください。");
+    } catch (e) {
+      document.execCommand("copy");
+      alert("選択状態にしました。コピーできていなければ、この状態で手動でコピーしてください。");
+    }
+  });
+
+  const pasteOverlay = document.getElementById("pasteOverlay");
+  const pasteTextarea = document.getElementById("pasteTextarea");
+  document.getElementById("pasteClipboardBtn").addEventListener("click", () => {
+    pasteTextarea.value = "";
+    pasteOverlay.style.display = "flex";
+    setTimeout(() => { pasteTextarea.focus(); }, 50);
+  });
+  document.getElementById("cancelPasteBtn").addEventListener("click", () => { pasteOverlay.style.display = "none"; });
+  pasteOverlay.addEventListener("click", (e) => { if (e.target === pasteOverlay) pasteOverlay.style.display = "none"; });
+  document.getElementById("doPasteBtn").addEventListener("click", () => {
+    try {
+      const payload = JSON.parse(pasteTextarea.value);
+      const importedState = (payload && payload.state) ? payload.state : payload;
+      if (!importedState || typeof importedState.items !== "object" || typeof importedState.tiers !== "object") {
+        throw new Error("invalid format");
+      }
+      if (!confirm("現在のデータを置き換えます。よろしいですか？（元に戻せません）")) return;
+      TIERS.forEach(t => { if (!importedState.tiers[t.key]) importedState.tiers[t.key] = []; });
+      if (!importedState.tiers.pool) importedState.tiers.pool = [];
+      state = importedState;
+      save();
+      render();
+      pasteOverlay.style.display = "none";
+    } catch (e) {
+      alert("読み込みに失敗しました。正しい内容が貼り付けられているか確認してください。");
+    }
   });
 
   renderTabs();
