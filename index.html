@@ -701,6 +701,7 @@
           dragState.moved = true;
           ensureGhost();
           updateDropTarget({ clientX: dragState.startX, clientY: dragState.startY });
+          startAutoScroll({ clientX: dragState.startX, clientY: dragState.startY });
         }, LONG_PRESS_MS);
       } else {
         e.preventDefault();
@@ -746,7 +747,47 @@
       dragState.ghost.style.left = (e.clientX - dragState.offsetX) + "px";
       dragState.ghost.style.top = (e.clientY - dragState.offsetY) + "px";
       updateDropTarget(e);
+      startAutoScroll(e);
     }
+  }
+
+  // While dragging, scroll the page when the pointer nears the top/bottom
+  // edge, and scroll a tier strip sideways when it nears that strip's edge.
+  const AUTO_SCROLL_EDGE_Y = 80;
+  const AUTO_SCROLL_EDGE_X = 40;
+  const AUTO_SCROLL_MAX = 20;
+  let autoScrollRaf = null;
+  let lastPointer = null;
+  function startAutoScroll(e) {
+    lastPointer = { clientX: e.clientX, clientY: e.clientY };
+    if (!autoScrollRaf) autoScrollRaf = requestAnimationFrame(autoScrollStep);
+  }
+  function stopAutoScroll() {
+    if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
+    autoScrollRaf = null;
+    lastPointer = null;
+  }
+  function edgeSpeed(dist, edge) {
+    return Math.ceil(AUTO_SCROLL_MAX * (1 - Math.max(dist, 0) / edge));
+  }
+  function autoScrollStep() {
+    autoScrollRaf = null;
+    if (!dragState || !dragState.ghost || !lastPointer) return;
+    const x = lastPointer.clientX, y = lastPointer.clientY;
+    let dy = 0;
+    if (y < AUTO_SCROLL_EDGE_Y) dy = -edgeSpeed(y, AUTO_SCROLL_EDGE_Y);
+    else if (y > window.innerHeight - AUTO_SCROLL_EDGE_Y) dy = edgeSpeed(window.innerHeight - y, AUTO_SCROLL_EDGE_Y);
+    let dx = 0;
+    const zone = lastDropEl;
+    if (zone && zone.scrollWidth > zone.clientWidth) {
+      const r = zone.getBoundingClientRect();
+      if (x < r.left + AUTO_SCROLL_EDGE_X) dx = -edgeSpeed(x - r.left, AUTO_SCROLL_EDGE_X);
+      else if (x > r.right - AUTO_SCROLL_EDGE_X) dx = edgeSpeed(r.right - x, AUTO_SCROLL_EDGE_X);
+    }
+    if (dy) window.scrollBy(0, dy);
+    if (dx) zone.scrollLeft += dx;
+    if (dy || dx) updateDropTarget(lastPointer);
+    autoScrollRaf = requestAnimationFrame(autoScrollStep);
   }
 
   let lastDropEl = null;
@@ -763,6 +804,7 @@
   function onPointerUp(e) {
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
+    stopAutoScroll();
     if (!dragState) return;
     clearTimeout(dragState.longPressTimer);
     document.querySelectorAll(".dragover").forEach(el => el.classList.remove("dragover"));
