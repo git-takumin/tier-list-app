@@ -267,6 +267,14 @@
     <div class="field" id="authorField" style="display:none;">
       <label>著者名（任意・書籍の検索精度が上がります）</label>
       <input type="text" id="f-author" placeholder="例: スティーブン・R・コヴィー">
+      <label for="f-bookgenre" style="margin-top:10px;">ジャンル（「タイトルから自動取得」で絞り込み）</label>
+      <select id="f-bookgenre">
+        <option value="all">すべて</option>
+        <option value="comic">漫画</option>
+        <option value="novel">小説（単行本＋文庫）</option>
+        <option value="lightnovel">ライトノベル</option>
+        <option value="kids">絵本・児童書</option>
+      </select>
     </div>
     <div class="field">
       <div class="autofetch-row">
@@ -910,13 +918,44 @@
 
   // Rakuten allows about one request per second, so space calls out.
   let lastRakutenCall = 0;
-  async function searchBookRakuten(q, author, page = 1) {
+  // Rakuten Books genre IDs (checked on books.rakuten.co.jp, 2026-11-20).
+  // Novels in bunko format live under 文庫 > 小説・エッセイ, so "novel"
+  // searches both genres and merges them page by page.
+  const RAKUTEN_GENRES = {
+    all: [""],
+    comic: ["001001"],
+    novel: ["001004", "001019001"],
+    lightnovel: ["001017"],
+    kids: ["001003"]
+  };
+  // Returns a fetchPage(page) for runAutoFetch. A genre that has run out
+  // is not asked again (Rakuten rejects pages past the last one).
+  function makeRakutenGenreSearch(q, author, genreKey) {
+    const genres = RAKUTEN_GENRES[genreKey] || RAKUTEN_GENRES.all;
+    const finished = new Set();
+    return async (page) => {
+      let results = [];
+      const doneNow = [];
+      for (const g of genres) {
+        if (finished.has(g)) continue;
+        const r = await searchBookRakuten(q, author, page, g);
+        results = results.concat(r.results);
+        if (!r.hasMore) doneNow.push(g);
+      }
+      // Only mark genres finished once the whole page succeeded, so a
+      // failed "もっと見る" can be retried without losing results.
+      doneNow.forEach(g => finished.add(g));
+      return { results, hasMore: finished.size < genres.length };
+    };
+  }
+  async function searchBookRakuten(q, author, page = 1, genreId = "") {
     const appId = localStorage.getItem(RAKUTEN_KEY_STORAGE);
     const secret = localStorage.getItem(RAKUTEN_SECRET_STORAGE);
     if (!appId || !secret) { throw new Error("楽天ブックスのアプリID・アクセスキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
     let url = "https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?format=json&hits=" + PAGE_SIZE + "&page=" + page + "&applicationId=" + encodeURIComponent(appId) + "&accessKey=" + encodeURIComponent(secret);
     if (q) url += "&title=" + encodeURIComponent(q);
     if (author) url += "&author=" + encodeURIComponent(author);
+    if (genreId) url += "&booksGenreId=" + genreId;
     const waitMs = lastRakutenCall + 1100 - Date.now();
     if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
     lastRakutenCall = Date.now();
@@ -1094,8 +1133,9 @@
     const author = fAuthor.value.trim();
     if (!q && !(fCategory.value === "book" && author)) { fTitle.focus(); return; }
     const category = fCategory.value;
+    const rakutenSearch = makeRakutenGenreSearch(q, author, fBookGenre.value);
     runAutoFetch(page => {
-      if (category === "book") return searchBookRakuten(q, author, page);
+      if (category === "book") return rakutenSearch(page);
       if (category === "anime") return searchAnime(q, page);
       return searchMovie(q, page);
     });
@@ -1123,6 +1163,17 @@
   const fCategory = document.getElementById("f-category");
   const fAuthor = document.getElementById("f-author");
   const authorField = document.getElementById("authorField");
+  // The genre choice is remembered per browser so repeat searches stay in
+  // the same genre; storage failures just fall back to "すべて".
+  const fBookGenre = document.getElementById("f-bookgenre");
+  const BOOK_GENRE_STORAGE = "tierdb-book-genre";
+  try {
+    const savedGenre = localStorage.getItem(BOOK_GENRE_STORAGE);
+    if (savedGenre && RAKUTEN_GENRES[savedGenre]) fBookGenre.value = savedGenre;
+  } catch (e) {}
+  fBookGenre.addEventListener("change", () => {
+    try { localStorage.setItem(BOOK_GENRE_STORAGE, fBookGenre.value); } catch (e) {}
+  });
   const fImageFile = document.getElementById("f-imagefile");
   const fImageUrl = document.getElementById("f-imageurl");
   const fPreview = document.getElementById("f-preview");
