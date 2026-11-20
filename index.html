@@ -116,12 +116,12 @@
     position: absolute; top: 3px; left: 3px; font-size: 0.72rem; background: rgba(255,255,255,0.88);
     border-radius: 4px; padding: 0 3px; line-height: 1.4;
   }
-  .card .badge .series-others { margin-left: 2px; padding-left: 3px; border-left: 1px solid rgba(0,0,0,0.15); }
-  .series-links { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
-  .series-links .series-head { font-size: 0.72rem; color: var(--text-dim); }
-  .series-link { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 6px 8px; font-size: 0.8rem; font-weight: 600; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
-  .series-link:hover { border-color: var(--accent); }
-  .series-link .series-tier { margin-left: auto; font-size: 0.7rem; color: var(--text-dim); font-weight: 600; flex: none; }
+  .cat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cat-chip { padding: 6px 12px; font-size: 0.85rem; border-radius: 999px; background: var(--bg); color: var(--text-dim); border: 1px solid var(--border); }
+  .cat-chip.on { background: rgba(99,102,241,0.12); color: var(--text); border-color: var(--accent); }
+  .cat-chip .main-mark { font-size: 0.65rem; margin-left: 4px; color: var(--accent); }
+  .search-cat-row { margin-top: 10px; }
+  .volume-row .vr-cat { flex: none; width: auto; }
   .card.dragging { opacity: 0.35; }
   .card.ghost { position: fixed; pointer-events: none; z-index: 999; opacity: 0.92; transform: scale(1.04); box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
 
@@ -258,13 +258,12 @@
   <div class="modal">
     <h2 id="modalTitle">作品を追加</h2>
     <div class="field">
-      <label>カテゴリ</label>
-      <select id="f-category">
-        <option value="book">📚 書籍</option>
-        <option value="anime">📺 アニメ</option>
-        <option value="drama">📡 ドラマ</option>
-        <option value="movie">🎬 映画</option>
-      </select>
+      <label>カテゴリ（複数選べます・最初に選んだものがメイン）</label>
+      <div class="cat-chips" id="f-cats"></div>
+      <div class="search-cat-row" id="searchCatRow" style="display:none;">
+        <label for="f-category">自動取得で探すカテゴリ</label>
+        <select id="f-category"></select>
+      </div>
     </div>
     <div class="field">
       <label>タイトル</label>
@@ -321,12 +320,7 @@
       <label>タグ（任意・カンマ区切りで複数可）</label>
       <input type="text" id="f-tags" placeholder="例: ラノベ, シリーズ物, エッセイ">
     </div>
-    <div class="field">
-      <label for="f-series">シリーズ名（任意・同じ名前のカード同士がつながります）</label>
-      <input type="text" id="f-series" list="seriesOptions" placeholder="例: VIVANT、超かぐや姫">
-      <datalist id="seriesOptions"></datalist>
-      <div class="series-links" id="seriesLinks"></div>
-    </div>
+
     <div class="modal-actions">
       <button class="btn-ghost" id="deleteItemBtn" style="display:none;">削除</button>
       <div class="right">
@@ -459,22 +453,22 @@
     return null;
   }
 
-  // Cards that share a シリーズ名 (case/space-insensitive) are related works,
-  // e.g. the VIVANT drama and the VIVANT movie. Each keeps its own tier.
-  function normSeries(s) { return (s || "").trim().toLowerCase(); }
-  function seriesMembers(series, excludeId) {
-    const n = normSeries(series);
-    if (!n) return [];
-    return Object.keys(state.items).filter(id => id !== excludeId && normSeries(state.items[id].series) === n);
+  // An item can belong to several categories (e.g. VIVANT = drama + movie).
+  // item.categories holds them in order; the first is the "main" one and is
+  // also kept in item.category so older data and code keep working.
+  function itemCats(item) {
+    const list = (item.categories && item.categories.length) ? item.categories : [item.category];
+    return list.filter(c => CATEGORIES[c]);
   }
+  function catEmojis(cats) { return cats.map(c => CATEGORIES[c].emoji).join(""); }
 
-  function findDuplicate(title, category, excludeId) {
+  function findDuplicate(title, cats, excludeId) {
     const norm = (title || "").trim().toLowerCase();
     if (!norm) return null;
     for (const id of Object.keys(state.items)) {
       if (id === excludeId) continue;
       const it = state.items[id];
-      if (it.category === category && (it.title || "").trim().toLowerCase() === norm) return id;
+      if (itemCats(it).some(c => cats.includes(c)) && (it.title || "").trim().toLowerCase() === norm) return id;
     }
     return null;
   }
@@ -564,12 +558,11 @@
   const poolContent = document.getElementById("pool-content");
 
   function itemVisible(item) {
-    if (currentFilter !== "all" && item.category !== currentFilter) return false;
+    if (currentFilter !== "all" && !itemCats(item).includes(currentFilter)) return false;
     if (currentSearch) {
       const inTitle = item.title.toLowerCase().includes(currentSearch);
       const inTags = (item.tags || []).some(t => t.toLowerCase().includes(currentSearch));
-      const inSeries = (item.series || "").toLowerCase().includes(currentSearch);
-      if (!inTitle && !inTags && !inSeries) return false;
+      if (!inTitle && !inTags) return false;
     }
     if (currentTagFilter && !(item.tags || []).includes(currentTagFilter)) return false;
     return true;
@@ -636,23 +629,13 @@
       } else {
         const ph = document.createElement("div");
         ph.className = "thumb placeholder";
-        ph.textContent = CATEGORIES[item.category] ? CATEGORIES[item.category].emoji : "❔";
+        ph.textContent = itemCats(item).length ? CATEGORIES[itemCats(item)[0]].emoji : "❔";
         card.appendChild(ph);
       }
 
       const badge = document.createElement("div");
       badge.className = "badge";
-      badge.textContent = CATEGORIES[item.category] ? CATEGORIES[item.category].emoji : "";
-      const related = seriesMembers(item.series, id);
-      if (related.length) {
-        const otherCats = [...new Set(related.map(rid => state.items[rid].category))]
-          .filter(c => c !== item.category && CATEGORIES[c]);
-        const others = document.createElement("span");
-        others.className = "series-others";
-        others.textContent = "🔗" + otherCats.map(c => CATEGORIES[c].emoji).join("");
-        badge.appendChild(others);
-        badge.title = "シリーズ「" + item.series + "」：ほかに " + related.length + "件";
-      }
+      badge.textContent = catEmojis(itemCats(item));
       card.appendChild(badge);
 
       const del = document.createElement("button");
@@ -683,7 +666,10 @@
       if (item.volumes && item.volumes.length) {
         const volCount = document.createElement("div");
         volCount.className = "volume-count";
-        const unit = CATEGORIES[item.category] ? CATEGORIES[item.category].volumeUnit : "件";
+        const main = itemCats(item)[0];
+        const rowCats = new Set(item.volumes.map(v => v.category || main));
+        const only = rowCats.size === 1 ? [...rowCats][0] : null;
+        const unit = only && CATEGORIES[only] ? CATEGORIES[only].volumeUnit : "件";
         volCount.textContent = "全" + item.volumes.length + unit;
         info.appendChild(volCount);
 
@@ -1143,7 +1129,7 @@
       addVolBtn.title = "巻・話数として追加";
       addVolBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        currentVolumes.push({ label: r.title, date: r.date || "", rating: 0 });
+        currentVolumes.push({ label: r.title, date: r.date || "", rating: 0, category: currentCats.length > 1 ? fCategory.value : "" });
         renderVolumesList();
       });
       row.appendChild(addVolBtn);
@@ -1251,6 +1237,21 @@
       labelInput.maxLength = 40;
       labelInput.value = vol.label || "";
       labelInput.addEventListener("input", () => { vol.label = labelInput.value; });
+      if (currentCats.length > 1) {
+        // Which category this row belongs to (e.g. 📡 シーズン1 / 🎬 劇場版).
+        const catSelect = document.createElement("select");
+        catSelect.className = "vr-cat";
+        catSelect.title = "この行のカテゴリ";
+        [""].concat(currentCats).forEach(key => {
+          const opt = document.createElement("option");
+          opt.value = key;
+          opt.textContent = key ? CATEGORIES[key].emoji : "—";
+          catSelect.appendChild(opt);
+        });
+        catSelect.value = currentCats.includes(vol.category) ? vol.category : "";
+        catSelect.addEventListener("change", () => { vol.category = catSelect.value; });
+        line1.appendChild(catSelect);
+      }
       line1.appendChild(labelInput);
 
       const upBtn = document.createElement("button");
@@ -1318,7 +1319,7 @@
   }
 
   addVolumeBtn.addEventListener("click", () => {
-    currentVolumes.push({ label: "", date: "", rating: 0 });
+    currentVolumes.push({ label: "", date: "", rating: 0, category: currentCats.length > 1 ? fCategory.value : "" });
     renderVolumesList();
   });
 
@@ -1347,19 +1348,80 @@
     }
   }
 
-  fCategory.addEventListener("change", () => {
-    fDateLabel.textContent = CATEGORIES[fCategory.value].dateLabel;
-    authorField.style.display = fCategory.value === "book" ? "" : "none";
-    autoFetchMangaBtn.style.display = fCategory.value === "book" ? "" : "none";
-    autoFetchRakutenBtn.style.display = fCategory.value === "book" ? "" : "none";
-    volumesLabel.textContent = (CATEGORIES[fCategory.value].volumeUnit) + "の管理（任意）";
-    sortVolumesBtn.textContent = CATEGORIES[fCategory.value].dateLabel + "順に並び替え";
+  // currentCats: the categories chosen in the modal, main first.
+  // fCategory (a select) only picks which of them 自動取得 searches.
+  let currentCats = ["book"];
+  const fCats = document.getElementById("f-cats");
+  const searchCatRow = document.getElementById("searchCatRow");
+  function renderCatChips() {
+    fCats.innerHTML = "";
+    Object.keys(CATEGORIES).forEach(key => {
+      const c = CATEGORIES[key];
+      const on = currentCats.includes(key);
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "cat-chip" + (on ? " on" : "");
+      chip.textContent = c.emoji + " " + c.label;
+      if (on && currentCats.length > 1 && currentCats[0] === key) {
+        const mark = document.createElement("span");
+        mark.className = "main-mark";
+        mark.textContent = "メイン";
+        chip.appendChild(mark);
+      }
+      chip.addEventListener("click", () => {
+        if (on) {
+          if (currentCats.length === 1) return; // keep at least one
+          currentCats = currentCats.filter(k => k !== key);
+        } else {
+          currentCats = currentCats.concat(key);
+          fCategory.value = key; // search the one just added
+          syncSearchCatOptions(key);
+        }
+        renderCatChips();
+        syncSearchCatOptions();
+        applyCategoryUI();
+      });
+      fCats.appendChild(chip);
+    });
+  }
+  function syncSearchCatOptions(prefer) {
+    const prev = prefer || fCategory.value;
+    fCategory.innerHTML = "";
+    currentCats.forEach(key => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = CATEGORIES[key].emoji + " " + CATEGORIES[key].label;
+      fCategory.appendChild(opt);
+    });
+    fCategory.value = currentCats.includes(prev) ? prev : currentCats[0];
+    searchCatRow.style.display = currentCats.length > 1 ? "" : "none";
+  }
+  function applyCategoryUI() {
+    const main = CATEGORIES[currentCats[0]];
+    const searchCat = fCategory.value;
+    fDateLabel.textContent = main.dateLabel;
+    authorField.style.display = searchCat === "book" ? "" : "none";
+    autoFetchMangaBtn.style.display = searchCat === "book" ? "" : "none";
+    autoFetchRakutenBtn.style.display = searchCat === "book" ? "" : "none";
+    volumesLabel.textContent = main.volumeUnit + "の管理（任意）";
+    sortVolumesBtn.textContent = main.dateLabel + "順に並び替え";
+    renderVolumesList();
     updateDupWarning();
+  }
+  function setModalCats(cats) {
+    currentCats = cats.slice();
+    renderCatChips();
+    syncSearchCatOptions(currentCats[0]);
+    applyCategoryUI();
+  }
+  fCategory.addEventListener("change", () => {
+    autoFetchResults.innerHTML = "";
+    applyCategoryUI();
   });
 
   const dupWarning = document.getElementById("dupWarning");
   function updateDupWarning() {
-    const dupId = findDuplicate(fTitle.value, fCategory.value, editingId);
+    const dupId = findDuplicate(fTitle.value, currentCats, editingId);
     if (dupId) {
       const loc = findLocation(dupId);
       const tierLabel = loc ? (loc.key === "pool" ? "未分類" : loc.key + "ティア") : "";
@@ -1415,63 +1477,11 @@
     }
   });
 
-  const fSeries = document.getElementById("f-series");
-  const seriesOptions = document.getElementById("seriesOptions");
-  const seriesLinks = document.getElementById("seriesLinks");
-  // Fills the シリーズ名 suggestions and lists the other cards in the
-  // same series; clicking one opens that card (unsaved edits are dropped).
-  function renderSeriesUI() {
-    const names = new Map();
-    Object.values(state.items).forEach(it => {
-      const n = normSeries(it.series);
-      if (n && !names.has(n)) names.set(n, it.series.trim());
-    });
-    seriesOptions.innerHTML = "";
-    [...names.values()].sort((a, b) => a.localeCompare(b, "ja")).forEach(name => {
-      const opt = document.createElement("option");
-      opt.value = name;
-      seriesOptions.appendChild(opt);
-    });
-
-    seriesLinks.innerHTML = "";
-    const members = seriesMembers(fSeries.value, editingId);
-    if (!members.length) return;
-    const head = document.createElement("div");
-    head.className = "series-head";
-    head.textContent = "同じシリーズの作品（押すと開きます。この画面の変更は保存されません）";
-    seriesLinks.appendChild(head);
-    const catOrder = Object.keys(CATEGORIES);
-    members
-      .sort((a, b) => catOrder.indexOf(state.items[a].category) - catOrder.indexOf(state.items[b].category))
-      .forEach(mid => {
-        const it = state.items[mid];
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "series-link";
-        const label = document.createElement("span");
-        label.textContent = (CATEGORIES[it.category] ? CATEGORIES[it.category].emoji + " " : "") + it.title;
-        const tier = document.createElement("span");
-        tier.className = "series-tier";
-        const loc = findLocation(mid);
-        tier.textContent = loc ? (loc.key === "pool" ? "未分類" : loc.key + "ティア") : "";
-        btn.appendChild(label);
-        btn.appendChild(tier);
-        btn.addEventListener("click", () => openEditModal(mid));
-        seriesLinks.appendChild(btn);
-      });
-  }
-  fSeries.addEventListener("input", renderSeriesUI);
-
   function openAddModal() {
     editingId = null;
     modalTitle.textContent = "作品を追加";
     fTitle.value = "";
-    fCategory.value = currentFilter !== "all" ? currentFilter : "book";
-    fDateLabel.textContent = CATEGORIES[fCategory.value].dateLabel;
     fAuthor.value = "";
-    authorField.style.display = fCategory.value === "book" ? "" : "none";
-    autoFetchMangaBtn.style.display = fCategory.value === "book" ? "" : "none";
-    autoFetchRakutenBtn.style.display = fCategory.value === "book" ? "" : "none";
     fImageFile.value = "";
     fImageUrl.value = "";
     pendingImage = "";
@@ -1480,12 +1490,8 @@
     currentRating = 0;
     buildStarPicker();
     fTags.value = "";
-    fSeries.value = "";
-    renderSeriesUI();
-    volumesLabel.textContent = CATEGORIES[fCategory.value].volumeUnit + "の管理（任意）";
-    sortVolumesBtn.textContent = CATEGORIES[fCategory.value].dateLabel + "順に並び替え";
     currentVolumes = [];
-    renderVolumesList();
+    setModalCats([currentFilter !== "all" ? currentFilter : "book"]);
     autoFetchResults.innerHTML = "";
     updateDupWarning();
     deleteItemBtn.style.display = "none";
@@ -1499,12 +1505,7 @@
     editingId = id;
     modalTitle.textContent = "作品を編集";
     fTitle.value = item.title;
-    fCategory.value = item.category;
-    fDateLabel.textContent = CATEGORIES[fCategory.value].dateLabel;
     fAuthor.value = "";
-    authorField.style.display = fCategory.value === "book" ? "" : "none";
-    autoFetchMangaBtn.style.display = fCategory.value === "book" ? "" : "none";
-    autoFetchRakutenBtn.style.display = fCategory.value === "book" ? "" : "none";
     fImageFile.value = "";
     pendingImage = item.image || "";
     if (pendingImage && pendingImage.startsWith("http")) fImageUrl.value = pendingImage; else fImageUrl.value = "";
@@ -1513,12 +1514,8 @@
     currentRating = item.rating || 0;
     buildStarPicker();
     fTags.value = (item.tags || []).join(", ");
-    fSeries.value = item.series || "";
-    renderSeriesUI();
-    volumesLabel.textContent = CATEGORIES[fCategory.value].volumeUnit + "の管理（任意）";
-    sortVolumesBtn.textContent = CATEGORIES[fCategory.value].dateLabel + "順に並び替え";
-    currentVolumes = (item.volumes || []).map(v => ({ label: v.label || "", date: v.date || "", rating: v.rating || 0 }));
-    renderVolumesList();
+    currentVolumes = (item.volumes || []).map(v => ({ label: v.label || "", date: v.date || "", rating: v.rating || 0, category: v.category || "" }));
+    setModalCats(itemCats(item).length ? itemCats(item) : ["book"]);
     autoFetchResults.innerHTML = "";
     updateDupWarning();
     deleteItemBtn.style.display = "";
@@ -1538,7 +1535,11 @@
     const tags = fTags.value.split(",").map(s => s.trim()).filter(Boolean);
     const volumes = currentVolumes
       .filter(v => v.label.trim() || v.date || v.rating)
-      .map(v => ({ label: v.label.trim(), date: v.date || "", rating: v.rating || 0 }));
+      .map(v => {
+        const row = { label: v.label.trim(), date: v.date || "", rating: v.rating || 0 };
+        if (currentCats.length > 1 && currentCats.includes(v.category)) row.category = v.category;
+        return row;
+      });
 
     let finalDate = fDate.value;
     let finalRating = currentRating;
@@ -1551,13 +1552,13 @@
 
     const data = {
       title,
-      category: fCategory.value,
+      category: currentCats[0],
+      categories: currentCats.slice(),
       image: pendingImage,
       date: finalDate,
       rating: finalRating,
       tags,
-      volumes,
-      series: fSeries.value.trim()
+      volumes
     };
     if (editingId) {
       state.items[editingId] = Object.assign({}, state.items[editingId], data);
