@@ -256,6 +256,7 @@
       <select id="f-category">
         <option value="book">📚 書籍</option>
         <option value="anime">📺 アニメ</option>
+        <option value="drama">📡 ドラマ</option>
         <option value="movie">🎬 映画</option>
       </select>
     </div>
@@ -335,7 +336,7 @@
       </div>
     </div>
     <div class="field">
-      <label>TMDb APIキー（映画の自動取得に使用）</label>
+      <label>TMDb APIキー（ドラマ・映画の自動取得に使用）</label>
       <input type="text" id="tmdbKeyInput" placeholder="TMDbのAPIキーを貼り付け">
       <div class="settings-hint">
         themoviedb.org で無料登録し、アカウント設定→APIから取得したAPIキー（v3 auth）を貼り付けてください。アニメの自動取得にはキーは不要です。
@@ -408,6 +409,7 @@
   const CATEGORIES = {
     book:  { label: "書籍",   emoji: "📚", dateLabel: "発売日", volumeUnit: "巻" },
     anime: { label: "アニメ", emoji: "📺", dateLabel: "放送日", volumeUnit: "期" },
+    drama: { label: "ドラマ", emoji: "📡", dateLabel: "放送日", volumeUnit: "シーズン" },
     movie: { label: "映画",   emoji: "🎬", dateLabel: "公開日", volumeUnit: "作" }
   };
 
@@ -1006,13 +1008,14 @@
   async function searchMangaAniList(q, page) { return searchAniListMedia(q, "MANGA", page); }
 
   // TMDb returns 20 per page, so one "page" here reads two TMDb pages (40).
-  async function searchMovie(q, page = 1) {
+  // kind is "movie" or "tv" (dramas); TV results use name / first_air_date.
+  async function searchTmdb(kind, q, page = 1) {
     const key = localStorage.getItem(TMDB_KEY_STORAGE);
     if (!key) { throw new Error("TMDbのAPIキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
-    const baseUrl = "https://api.themoviedb.org/3/search/movie?language=ja-JP&query=" + encodeURIComponent(q) + "&api_key=" + encodeURIComponent(key);
+    const baseUrl = "https://api.themoviedb.org/3/search/" + kind + "?language=ja-JP&query=" + encodeURIComponent(q) + "&api_key=" + encodeURIComponent(key);
     const first = page * 2 - 1;
     const p1 = await fetch(baseUrl + "&page=" + first).then(r => r.json());
-    if (p1.status_code) throw new Error(p1.status_message || "movie search failed");
+    if (p1.status_code) throw new Error(p1.status_message || kind + " search failed");
     const totalPages = p1.total_pages || 1;
     let raw = p1.results || [];
     let lastRead = first;
@@ -1021,12 +1024,14 @@
       if (!p2.status_code) { raw = raw.concat(p2.results || []); lastRead = first + 1; }
     }
     const results = raw.map(it => ({
-      title: it.title || q,
-      date: normalizeDate(it.release_date),
+      title: it.title || it.name || q,
+      date: normalizeDate(it.release_date || it.first_air_date),
       image: it.poster_path ? ("https://image.tmdb.org/t/p/w300" + it.poster_path) : ""
     }));
     return { results, hasMore: raw.length > 0 && lastRead < totalPages };
   }
+  async function searchMovie(q, page) { return searchTmdb("movie", q, page); }
+  async function searchDrama(q, page) { return searchTmdb("tv", q, page); }
 
   const autoFetchBtn = document.getElementById("autoFetchBtn");
   const autoFetchResults = document.getElementById("autoFetchResults");
@@ -1137,6 +1142,7 @@
     runAutoFetch(page => {
       if (category === "book") return rakutenSearch(page);
       if (category === "anime") return searchAnime(q, page);
+      if (category === "drama") return searchDrama(q, page);
       return searchMovie(q, page);
     });
   });
