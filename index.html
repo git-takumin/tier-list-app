@@ -160,6 +160,9 @@
   .af-date { font-size: 0.7rem; color: var(--text-dim); }
   .af-loading, .af-empty, .af-error { font-size: 0.8rem; color: var(--text-dim); padding: 4px 2px; }
   .af-error { color: var(--danger); }
+  .af-more { flex: none; padding: 8px; font-size: 0.8rem; background: transparent; color: var(--accent); border: 1px dashed var(--accent); border-radius: 8px; }
+  .af-more:hover:not(:disabled) { background: rgba(99,102,241,0.08); }
+  .af-more:disabled { color: var(--text-dim); border-color: var(--border); cursor: default; }
   .settings-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
   .dup-warning { font-size: 0.78rem; color: var(--star); margin-top: 6px; font-weight: 600; }
   .volume-row {
@@ -867,15 +870,22 @@
     return "";
   }
 
-  async function searchBook(q, author) {
+  // Every search function takes a 1-based page and returns
+  // { results, hasMore } so the result list can offer "もっと見る".
+  const PAGE_SIZE = 30;
+
+  async function searchBook(q, author, page = 1) {
     const key = localStorage.getItem(BOOKS_KEY_STORAGE);
     if (!key) { throw new Error("Google Books APIキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
     let queryStr = q || "";
     if (author) queryStr += (queryStr ? " " : "") + "inauthor:" + author;
-    const res = await fetch("https://www.googleapis.com/books/v1/volumes?maxResults=30&q=" + encodeURIComponent(queryStr) + "&key=" + encodeURIComponent(key));
+    const startIndex = (page - 1) * PAGE_SIZE;
+    const res = await fetch("https://www.googleapis.com/books/v1/volumes?maxResults=" + PAGE_SIZE + "&startIndex=" + startIndex + "&q=" + encodeURIComponent(queryStr) + "&key=" + encodeURIComponent(key));
     const json = await res.json();
     if (!res.ok || json.error) throw new Error((json.error && json.error.message) || "book search failed");
-    return (json.items || [])
+    const items = json.items || [];
+    const hasMore = items.length > 0 && startIndex + items.length < (json.totalItems || 0);
+    const results = items
       .filter(it => (it.volumeInfo || {}).printType !== "MAGAZINE")
       .map(it => {
         const vi = it.volumeInfo || {};
@@ -885,6 +895,7 @@
           image: vi.imageLinks ? (vi.imageLinks.thumbnail || vi.imageLinks.smallThumbnail || "").replace("http://", "https://") : ""
         };
       });
+    return { results, hasMore };
   }
 
   function parseRakutenDate(s) {
@@ -897,18 +908,25 @@
     return y + "-" + mo + "-" + d;
   }
 
-  async function searchBookRakuten(q, author) {
+  // Rakuten allows about one request per second, so space calls out.
+  let lastRakutenCall = 0;
+  async function searchBookRakuten(q, author, page = 1) {
     const appId = localStorage.getItem(RAKUTEN_KEY_STORAGE);
     const secret = localStorage.getItem(RAKUTEN_SECRET_STORAGE);
     if (!appId || !secret) { throw new Error("楽天ブックスのアプリID・アクセスキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
-    let url = "https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?format=json&hits=30&applicationId=" + encodeURIComponent(appId) + "&accessKey=" + encodeURIComponent(secret);
+    let url = "https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?format=json&hits=" + PAGE_SIZE + "&page=" + page + "&applicationId=" + encodeURIComponent(appId) + "&accessKey=" + encodeURIComponent(secret);
     if (q) url += "&title=" + encodeURIComponent(q);
     if (author) url += "&author=" + encodeURIComponent(author);
+    const waitMs = lastRakutenCall + 1100 - Date.now();
+    if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+    lastRakutenCall = Date.now();
     const res = await fetch(url);
     const json = await res.json();
     if (json.error) throw new Error(json.error_description || "楽天ブックスの検索に失敗しました");
     const items = json.items || json.Items || [];
-    return items.map(wrapper => {
+    const pageCount = Math.min(json.pageCount || 0, 100);
+    const hasMore = items.length > 0 && page < pageCount;
+    const results = items.map(wrapper => {
       const it = wrapper.item || wrapper.Item || wrapper || {};
       return {
         title: it.title || q,
@@ -916,19 +934,22 @@
         image: it.largeImageUrl || it.mediumImageUrl || ""
       };
     });
+    return { results, hasMore };
   }
 
-  async function searchAniListMedia(q, mediaType) {
-    const query = "query ($q: String, $type: MediaType) { Page(perPage: 30) { media(search: $q, type: $type) { title { romaji english native } startDate { year month day } coverImage { large } } } }";
+  async function searchAniListMedia(q, mediaType, page = 1) {
+    const query = "query ($q: String, $type: MediaType, $page: Int, $perPage: Int) { Page(page: $page, perPage: $perPage) { pageInfo { hasNextPage } media(search: $q, type: $type) { title { romaji english native } startDate { year month day } coverImage { large } } } }";
     const res = await fetch("https://graphql.anilist.co", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { q, type: mediaType } })
+      body: JSON.stringify({ query, variables: { q, type: mediaType, page, perPage: PAGE_SIZE } })
     });
     if (!res.ok) throw new Error((mediaType === "MANGA" ? "manga" : "anime") + " search failed");
     const json = await res.json();
-    const media = (json.data && json.data.Page && json.data.Page.media) || [];
-    return media.map(m => {
+    const pageData = (json.data && json.data.Page) || {};
+    const media = pageData.media || [];
+    const hasMore = !!(pageData.pageInfo && pageData.pageInfo.hasNextPage) && media.length > 0;
+    const results = media.map(m => {
       const title = m.title.native || m.title.romaji || m.title.english || q;
       let date = "";
       if (m.startDate && m.startDate.year) {
@@ -939,38 +960,93 @@
       }
       return { title, date, image: m.coverImage ? (m.coverImage.large || "") : "" };
     });
+    return { results, hasMore };
   }
 
-  async function searchAnime(q) { return searchAniListMedia(q, "ANIME"); }
-  async function searchMangaAniList(q) { return searchAniListMedia(q, "MANGA"); }
+  async function searchAnime(q, page) { return searchAniListMedia(q, "ANIME", page); }
+  async function searchMangaAniList(q, page) { return searchAniListMedia(q, "MANGA", page); }
 
-  async function searchMovie(q) {
+  // TMDb returns 20 per page, so one "page" here reads two TMDb pages (40).
+  async function searchMovie(q, page = 1) {
     const key = localStorage.getItem(TMDB_KEY_STORAGE);
     if (!key) { throw new Error("TMDbのAPIキーが未設定です。右上の「⚙ 設定」から登録してください。"); }
     const baseUrl = "https://api.themoviedb.org/3/search/movie?language=ja-JP&query=" + encodeURIComponent(q) + "&api_key=" + encodeURIComponent(key);
-    const page1 = await fetch(baseUrl + "&page=1").then(r => r.json());
-    if (page1.status_code) throw new Error(page1.status_message || "movie search failed");
-    let results = page1.results || [];
-    if (results.length < 30 && (page1.total_pages || 1) > 1) {
-      const page2 = await fetch(baseUrl + "&page=2").then(r => r.json());
-      if (!page2.status_code) results = results.concat(page2.results || []);
+    const first = page * 2 - 1;
+    const p1 = await fetch(baseUrl + "&page=" + first).then(r => r.json());
+    if (p1.status_code) throw new Error(p1.status_message || "movie search failed");
+    const totalPages = p1.total_pages || 1;
+    let raw = p1.results || [];
+    let lastRead = first;
+    if (first + 1 <= totalPages) {
+      const p2 = await fetch(baseUrl + "&page=" + (first + 1)).then(r => r.json());
+      if (!p2.status_code) { raw = raw.concat(p2.results || []); lastRead = first + 1; }
     }
-    return results.slice(0, 30).map(it => ({
+    const results = raw.map(it => ({
       title: it.title || q,
       date: normalizeDate(it.release_date),
       image: it.poster_path ? ("https://image.tmdb.org/t/p/w300" + it.poster_path) : ""
     }));
+    return { results, hasMore: raw.length > 0 && lastRead < totalPages };
   }
 
   const autoFetchBtn = document.getElementById("autoFetchBtn");
   const autoFetchResults = document.getElementById("autoFetchResults");
 
+  // Runs a paged search. fetchPage(page) resolves to { results, hasMore }.
+  // The first page replaces the list; "もっと見る" appends the next page.
+  let afSearchId = 0;
+  async function runAutoFetch(fetchPage) {
+    const searchId = ++afSearchId;
+    let page = 1;
+    autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
+    const loadPage = async (moreBtn) => {
+      try {
+        const { results, hasMore } = await fetchPage(page);
+        if (searchId !== afSearchId) return; // a newer search started
+        if (moreBtn) moreBtn.remove();
+        if (page === 1) {
+          autoFetchResults.innerHTML = "";
+          if (!results.length && !hasMore) {
+            autoFetchResults.innerHTML = '<div class="af-empty">見つかりませんでした</div>';
+            return;
+          }
+        }
+        renderAutoFetchResults(results);
+        if (hasMore) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "af-more";
+          btn.textContent = "もっと見る";
+          btn.addEventListener("click", () => {
+            btn.disabled = true;
+            btn.textContent = "読み込み中...";
+            page += 1;
+            loadPage(btn);
+          });
+          autoFetchResults.appendChild(btn);
+        } else if (page > 1) {
+          const end = document.createElement("div");
+          end.className = "af-empty";
+          end.textContent = "これ以上はありません";
+          autoFetchResults.appendChild(end);
+        }
+      } catch (e) {
+        if (searchId !== afSearchId) return;
+        const msg = e.message || "検索に失敗しました（通信環境をご確認ください）";
+        if (moreBtn) {
+          page -= 1;
+          moreBtn.disabled = false;
+          moreBtn.textContent = "もっと見る（失敗したのでもう一度）";
+          moreBtn.title = msg;
+        } else {
+          autoFetchResults.innerHTML = '<div class="af-error">' + escapeHtml(msg) + '</div>';
+        }
+      }
+    };
+    await loadPage(null);
+  }
+
   function renderAutoFetchResults(results) {
-    autoFetchResults.innerHTML = "";
-    if (!results.length) {
-      autoFetchResults.innerHTML = '<div class="af-empty">見つかりませんでした</div>';
-      return;
-    }
     results.forEach(r => {
       const row = document.createElement("div");
       row.className = "af-row";
@@ -1017,16 +1093,12 @@
     const q = fTitle.value.trim();
     const author = fAuthor.value.trim();
     if (!q && !(fCategory.value === "book" && author)) { fTitle.focus(); return; }
-    autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
-    try {
-      let results;
-      if (fCategory.value === "book") results = await searchBookRakuten(q, author);
-      else if (fCategory.value === "anime") results = await searchAnime(q);
-      else results = await searchMovie(q);
-      renderAutoFetchResults(results);
-    } catch (e) {
-      autoFetchResults.innerHTML = '<div class="af-error">' + (e.message || "検索に失敗しました（通信環境をご確認ください）") + '</div>';
-    }
+    const category = fCategory.value;
+    runAutoFetch(page => {
+      if (category === "book") return searchBookRakuten(q, author, page);
+      if (category === "anime") return searchAnime(q, page);
+      return searchMovie(q, page);
+    });
   });
 
   const autoFetchRakutenBtn = document.getElementById("autoFetchRakutenBtn");
@@ -1034,26 +1106,14 @@
     const q = fTitle.value.trim();
     const author = fAuthor.value.trim();
     if (!q && !author) { fTitle.focus(); return; }
-    autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
-    try {
-      const results = await searchBook(q, author);
-      renderAutoFetchResults(results);
-    } catch (e) {
-      autoFetchResults.innerHTML = '<div class="af-error">' + (e.message || "検索に失敗しました（通信環境をご確認ください）") + '</div>';
-    }
+    runAutoFetch(page => searchBook(q, author, page));
   });
 
   const autoFetchMangaBtn = document.getElementById("autoFetchMangaBtn");
   autoFetchMangaBtn.addEventListener("click", async () => {
     const q = fTitle.value.trim();
     if (!q) { fTitle.focus(); return; }
-    autoFetchResults.innerHTML = '<div class="af-loading">検索中...</div>';
-    try {
-      const results = await searchMangaAniList(q);
-      renderAutoFetchResults(results);
-    } catch (e) {
-      autoFetchResults.innerHTML = '<div class="af-error">' + (e.message || "検索に失敗しました（通信環境をご確認ください）") + '</div>';
-    }
+    runAutoFetch(page => searchMangaAniList(q, page));
   });
 
   // ---------- Modal (add / edit) ----------
